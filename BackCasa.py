@@ -7,6 +7,9 @@ from playwright.sync_api import sync_playwright
 from Models import Match, LastMatch
 from fastapi.encoders import jsonable_encoder
 import pandas as pd
+import smtplib
+import email
+
 
 def main():
     # file = True
@@ -29,8 +32,9 @@ def main():
         if not file:
             page.goto(url)
             page.wait_for_timeout(1000)
-            date = datetime.date.today()
-            api_url = f"https://oddspedia.com/api/v1/getMatchList?excludeSpecialStatus=0&sortBy=default&perPageDefault=300&startDate={date}T00%3A00%3A00Z&endDate={date}T23%3A59%3A59Z&geoCode=PT&status=all&sport=football&popularLeaguesOnly=0&page=1&perPage=300&language=en"
+            today_date = datetime.date.today()
+            tomorrow_date = datetime.date.today() + datetime.timedelta(days=1)
+            api_url = f"https://oddspedia.com/api/v1/getMatchList?excludeSpecialStatus=0&sortBy=default&perPageDefault=500&startDate={today_date}T06%3A00%3A00Z&endDate={tomorrow_date}T05%3A59%3A59Z&geoCode=PT&status=all&sport=football&popularLeaguesOnly=0&page=1&perPage=500&language=en"
             data = page.goto(api_url).json()
         else:
             with open("matches.json", "r") as read_file:
@@ -45,7 +49,10 @@ def main():
         print(filtered_df.to_string())
 
         insert_home_and_away_form(page, filtered_df)
-        filtered_df.to_csv('final_df.csv')
+        # filtered_df.to_csv('final_df.csv')
+        final_df = filtered_df.query('ht_form.str.count(\'w\') >= 3 & at_form.str.count(\'l\') >= 3')
+
+        send_email(final_df)
 
 
 def get_match_df(matches):
@@ -61,6 +68,7 @@ def get_last_match_df(page, league_id, team_id):
     last_matches = [LastMatch(**match) for match in json_last_matches if match['outcome'] is not None]
     return pd.DataFrame(jsonable_encoder(last_matches))
 
+
 def insert_home_and_away_form(page, df):
     for index, row in df.iterrows():
         # sleep(0.05)
@@ -75,14 +83,39 @@ def insert_home_and_away_form(page, df):
         end_date = datetime.datetime.now().strftime('%Y-%m-%d')
 
         if not raw_home_team_last_matches.empty and not raw_away_team_last_matches.empty:
-            home_team_last_matches = raw_home_team_last_matches.sort_values(by='md', ascending=False).query('ht_id == @home_team_id & md.between(@start_date,@end_date)')
-            away_team_last_matches = raw_away_team_last_matches.sort_values(by='md', ascending=False).query('at_id == @away_team_id & md.between(@start_date,@end_date)')
+            home_team_last_matches = raw_home_team_last_matches.sort_values(by='md', ascending=False).query(
+                'ht_id == @home_team_id & md.between(@start_date,@end_date)')
+            away_team_last_matches = raw_away_team_last_matches.sort_values(by='md', ascending=False).query(
+                'at_id == @away_team_id & md.between(@start_date,@end_date)')
 
             home_team_form = "".join(home_team_last_matches['outcome'].head().values)
             away_team_form = "".join(away_team_last_matches['outcome'].head().values)
 
             df.at[index, 'ht_form'] = home_team_form
             df.at[index, 'at_form'] = away_team_form
+
+
+def send_email(df):
+    FROM = "doacaosite@gmail.com"
+    PASSWORD = "gpeaxofzhbmimfbw"
+
+    msg = email.message.Message()
+    msg['From'] = FROM
+    msg['To'] = "andreteles56@hotmail.com"
+    msg['Subject'] = f"Back Casa para o dia {datetime.date.today()}"
+    msg.add_header('Content-Type', 'text')
+    msg.set_payload(extractEmailContent(df))
+
+    server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+    server.login(FROM, PASSWORD)
+    server.sendmail(msg['From'], [msg['To']], msg.as_string().encode('utf-8'))
+    server.quit()
+
+def extractEmailContent(df):
+    text = "Os jogos que estão dentro do método Back Casa são:\n\n"
+    for index, row in df.iterrows():
+        text += f"- {row['ht']} vs {row['at']}\n"
+    return text
 
 if __name__ == '__main__':
     main()
