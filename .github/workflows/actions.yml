@@ -3,7 +3,7 @@ name: BackCasa
 on:
   workflow_dispatch:
   schedule:
-    - cron: '*/15 * * * *'
+    - cron: '0 6 * * *'
 
 jobs:
   build:
