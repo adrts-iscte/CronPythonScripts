@@ -8,6 +8,7 @@ from Models import Match, LastMatch
 from fastapi.encoders import jsonable_encoder
 import pandas as pd
 import smtplib
+import email
 
 
 def main():
@@ -31,8 +32,9 @@ def main():
         if not file:
             page.goto(url)
             page.wait_for_timeout(1000)
-            date = datetime.date.today()
-            api_url = f"https://oddspedia.com/api/v1/getMatchList?excludeSpecialStatus=0&sortBy=default&perPageDefault=300&startDate={date}T00%3A00%3A00Z&endDate={date}T23%3A59%3A59Z&geoCode=PT&status=all&sport=football&popularLeaguesOnly=0&page=1&perPage=300&language=en"
+            today_date = datetime.date.today()
+            tomorrow_date = datetime.date.today() + datetime.timedelta(days=1)
+            api_url = f"https://oddspedia.com/api/v1/getMatchList?excludeSpecialStatus=0&sortBy=default&perPageDefault=500&startDate={today_date}T06%3A00%3A00Z&endDate={tomorrow_date}T05%3A59%3A59Z&geoCode=PT&status=all&sport=football&popularLeaguesOnly=0&page=1&perPage=500&language=en"
             data = page.goto(api_url).json()
         else:
             with open("matches.json", "r") as read_file:
@@ -93,20 +95,27 @@ def insert_home_and_away_form(page, df):
             df.at[index, 'at_form'] = away_team_form
 
 
-def send_email(content):
+def send_email(df):
     FROM = "doacaosite@gmail.com"
     PASSWORD = "gpeaxofzhbmimfbw"
-    TO = ["andreteles56@hotmail.com"]
 
-    SUBJECT = f"Back Casa para o dia {datetime.date.today()}"
-
-    TEXT = content.to_string().encode('utf-8')
+    msg = email.message.Message()
+    msg['From'] = FROM
+    msg['To'] = "andreteles56@hotmail.com"
+    msg['Subject'] = f"Back Casa para o dia {datetime.date.today()}"
+    msg.add_header('Content-Type', 'text')
+    msg.set_payload(extractEmailContent(df))
 
     server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
     server.login(FROM, PASSWORD)
-    server.sendmail(FROM, TO, TEXT)
+    server.sendmail(msg['From'], [msg['To']], msg.as_string().encode('utf-8'))
     server.quit()
 
+def extractEmailContent(df):
+    text = "Os jogos que estão dentro do método Back Casa são:\n\n"
+    for index, row in df.iterrows():
+        text += f"- {row['ht']} vs {row['at']}\n"
+    return text
 
 if __name__ == '__main__':
     main()
