@@ -63,7 +63,7 @@ def get_last_match_df(page, league_id, team_id):
 
 def insert_home_and_away_form(page, df):
     for index, row in df.iterrows():
-        sleep(0.05)
+        # sleep(0.05)
         league_id = row['league_id']
         home_team_id = row['ht_id']
         away_team_id = row['at_id']
