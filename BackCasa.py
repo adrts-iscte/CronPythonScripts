@@ -7,6 +7,8 @@ from playwright.sync_api import sync_playwright
 from Models import Match, LastMatch
 from fastapi.encoders import jsonable_encoder
 import pandas as pd
+import smtplib
+
 
 def main():
     # file = True
@@ -45,7 +47,10 @@ def main():
         print(filtered_df.to_string())
 
         insert_home_and_away_form(page, filtered_df)
-        filtered_df.to_csv('final_df.csv')
+        # filtered_df.to_csv('final_df.csv')
+        final_df = filtered_df.query('ht_form.str.count(\'w\') >= 3 & at_form.str.count(\'l\') >= 3')
+
+        send_email(final_df)
 
 
 def get_match_df(matches):
@@ -61,6 +66,7 @@ def get_last_match_df(page, league_id, team_id):
     last_matches = [LastMatch(**match) for match in json_last_matches if match['outcome'] is not None]
     return pd.DataFrame(jsonable_encoder(last_matches))
 
+
 def insert_home_and_away_form(page, df):
     for index, row in df.iterrows():
         # sleep(0.05)
@@ -75,14 +81,32 @@ def insert_home_and_away_form(page, df):
         end_date = datetime.datetime.now().strftime('%Y-%m-%d')
 
         if not raw_home_team_last_matches.empty and not raw_away_team_last_matches.empty:
-            home_team_last_matches = raw_home_team_last_matches.sort_values(by='md', ascending=False).query('ht_id == @home_team_id & md.between(@start_date,@end_date)')
-            away_team_last_matches = raw_away_team_last_matches.sort_values(by='md', ascending=False).query('at_id == @away_team_id & md.between(@start_date,@end_date)')
+            home_team_last_matches = raw_home_team_last_matches.sort_values(by='md', ascending=False).query(
+                'ht_id == @home_team_id & md.between(@start_date,@end_date)')
+            away_team_last_matches = raw_away_team_last_matches.sort_values(by='md', ascending=False).query(
+                'at_id == @away_team_id & md.between(@start_date,@end_date)')
 
             home_team_form = "".join(home_team_last_matches['outcome'].head().values)
             away_team_form = "".join(away_team_last_matches['outcome'].head().values)
 
             df.at[index, 'ht_form'] = home_team_form
             df.at[index, 'at_form'] = away_team_form
+
+
+def send_email(content):
+    FROM = "doacaosite@gmail.com"
+    PASSWORD = "gpeaxofzhbmimfbw"
+    TO = ["andreteles56@hotmail.com"]
+
+    SUBJECT = f"Back Casa para o dia {datetime.date.today()}"
+
+    TEXT = content.to_string().encode('utf-8')
+
+    server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+    server.login(FROM, PASSWORD)
+    server.sendmail(FROM, TO, TEXT)
+    server.quit()
+
 
 if __name__ == '__main__':
     main()
