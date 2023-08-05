@@ -32,37 +32,54 @@ def main():
         if not file:
             page.goto(url)
             page.wait_for_timeout(1000)
-            today_date = datetime.date.today()
-            tomorrow_date = datetime.date.today() + datetime.timedelta(days=1)
-            api_url = f"https://oddspedia.com/api/v1/getMatchList?excludeSpecialStatus=0&sortBy=default&perPageDefault=500&startDate={today_date}T06%3A00%3A00Z&endDate={tomorrow_date}T05%3A59%3A59Z&geoCode=PT&status=all&sport=football&popularLeaguesOnly=0&page=1&perPage=500&language=en"
+            today_date = datetime.date.today() + datetime.timedelta(days=3)
+            # today_date = "2023-04-15"
+            tomorrow_date = today_date + datetime.timedelta(days=1)
+            # tomorrow_date = "2023-04-16"
+            api_url = f"https://oddspedia.com/api/v1/getMatchList?excludeSpecialStatus=0&sortBy=default&perPageDefault=1000&startDate={today_date}T06%3A00%3A00Z&endDate={tomorrow_date}T05%3A59%3A59Z&geoCode=PT&status=all&sport=football&popularLeaguesOnly=0&page=1&perPage=1000&language=en"
             data = page.goto(api_url).json()
         else:
             with open("matches.json", "r") as read_file:
                 data = json.load(read_file)
 
         df = get_match_df(data)
+        print(df.to_string())
+
         df['ht_form'] = ""
         df['at_form'] = ""
-        leagues_id = range(0, 24000)
 
-        filtered_df = df.query('league_id.isin(@leagues_id)')
-        print(filtered_df.to_string())
-
-        insert_home_and_away_form(page, filtered_df)
+        insert_home_and_away_form(page, df)
         # filtered_df.to_csv('final_df.csv')
-        final_df = filtered_df.query('ht_form.str.count(\'w\') >= 3 & at_form.str.count(\'l\') >= 3')
+        final_df = df.query('ht_form.str.count(\'w\') >= 3 & at_form.str.count(\'l\') >= 3')
 
-        send_email(final_df)
+        print(final_df.to_string())
+        # send_email(final_df)
 
 
 def get_match_df(matches):
+    league_ids = [
+        21,   # Brazil Serie A
+        32,   # Brazil Serie B
+        24,   # France Ligue 1
+        838,  # France Ligue 2
+        627,  # England Premier League
+        15,   # England Championship
+        47,   # Portugal Primeira Liga
+        46,   # Germany 2. Bundesliga
+        86,   # Switzerland Super League
+        13,   # Belgium Pro League
+        34,   # Italy Serie B
+        64    # Spain Segunda Division
+    ]
+
     json_matchlist = matches['data']['matchList']
-    matches = [Match(**match) for match in json_matchlist if match['matchstatus'] == 1]
+    # matches = [Match(**match) for match in json_matchlist if (match['matchstatus'] == 8 and match['league_id'] in league_ids)]
+    matches = [Match(**match) for match in json_matchlist if (match['matchstatus'] == 1 and match['league_id'] in league_ids)]
     return pd.DataFrame(jsonable_encoder(matches))
 
 
 def get_last_match_df(page, league_id, team_id):
-    team_last_matches_url = f"https://oddspedia.com/api/v1/getTeamLastMatches?upcomingMatchesLimit=0&finishedMatchesLimit=24&geoCode=PT&teamId={team_id}&leagueId={league_id}&language=en"
+    team_last_matches_url = f"https://oddspedia.com/api/v1/getTeamLastMatches?upcomingMatchesLimit=0&finishedMatchesLimit=50&geoCode=PT&teamId={team_id}&leagueId={league_id}&language=en"
     last_matches = page.goto(team_last_matches_url).json()
     json_last_matches = last_matches['data'][f'{team_id}']['matches']
     last_matches = [LastMatch(**match) for match in json_last_matches if match['outcome'] is not None]
@@ -79,10 +96,10 @@ def insert_home_and_away_form(page, df):
         raw_home_team_last_matches = get_last_match_df(page, league_id, home_team_id)
         raw_away_team_last_matches = get_last_match_df(page, league_id, away_team_id)
 
-        start_date = (datetime.datetime.now() + dateutil.relativedelta.relativedelta(months=-3)).strftime('%Y-%m-%d')
-        end_date = datetime.datetime.now().strftime('%Y-%m-%d')
-
         if not raw_home_team_last_matches.empty and not raw_away_team_last_matches.empty:
+            start_date = (datetime.datetime.strptime(row['md'], '%Y-%m-%d %H:%M:%S+00') + dateutil.relativedelta.relativedelta(months=-3)).strftime('%Y-%m-%d')
+            end_date = datetime.datetime.strptime(row['md'], '%Y-%m-%d %H:%M:%S+00').strftime('%Y-%m-%d')
+
             home_team_last_matches = raw_home_team_last_matches.sort_values(by='md', ascending=False).query(
                 'ht_id == @home_team_id & md.between(@start_date,@end_date)')
             away_team_last_matches = raw_away_team_last_matches.sort_values(by='md', ascending=False).query(
@@ -111,11 +128,13 @@ def send_email(df):
     server.sendmail(msg['From'], [msg['To']], msg.as_string().encode('utf-8'))
     server.quit()
 
+
 def extractEmailContent(df):
     text = "Os jogos que estão dentro do método Back Casa são:\n\n"
     for index, row in df.iterrows():
         text += f"- {row['ht']} vs {row['at']}\n"
     return text
+
 
 if __name__ == '__main__':
     main()
