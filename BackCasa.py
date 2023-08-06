@@ -53,7 +53,7 @@ def main():
         final_df = df.query('ht_form.str.count(\'w\') >= 3 & at_form.str.count(\'l\') >= 3')
 
         print(final_df.to_string())
-        # send_email(final_df)
+        send_email(final_df)
 
 
 def get_match_df(matches):
