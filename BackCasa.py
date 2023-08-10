@@ -53,7 +53,7 @@ def main():
         final_df = df.query('ht_form.str.count(\'w\') >= 3 & at_form.str.count(\'l\') >= 3')
 
         print(final_df.to_string())
-        # send_email(final_df)
+        send_email(final_df)
 
 
 def get_match_df(matches):
@@ -89,6 +89,7 @@ def get_last_match_df(page, league_id, team_id):
 def insert_home_and_away_form(page, df):
     for index, row in df.iterrows():
         # sleep(0.05)
+        match_date = row['md']
         league_id = row['league_id']
         home_team_id = row['ht_id']
         away_team_id = row['at_id']
@@ -101,9 +102,9 @@ def insert_home_and_away_form(page, df):
             end_date = datetime.datetime.strptime(row['md'], '%Y-%m-%d %H:%M:%S+00').strftime('%Y-%m-%d')
 
             home_team_last_matches = raw_home_team_last_matches.sort_values(by='md', ascending=False).query(
-                'ht_id == @home_team_id & md.between(@start_date,@end_date)')
+                'ht_id == @home_team_id & md < @match_date')
             away_team_last_matches = raw_away_team_last_matches.sort_values(by='md', ascending=False).query(
-                'at_id == @away_team_id & md.between(@start_date,@end_date)')
+                'at_id == @away_team_id & md < @match_date')
 
             home_team_form = "".join(home_team_last_matches['outcome'].head().values)
             away_team_form = "".join(away_team_last_matches['outcome'].head().values)
