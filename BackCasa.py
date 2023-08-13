@@ -32,8 +32,7 @@ def main():
         if not file:
             page.goto(url)
             page.wait_for_timeout(1000)
-            today_date = datetime.date.today()
-+ datetime.timedelta(days=1)            
+            today_date = datetime.date.today()         
             # today_date = "2023-04-15"
             tomorrow_date = today_date + datetime.timedelta(days=1)
             # tomorrow_date = "2023-04-16"
