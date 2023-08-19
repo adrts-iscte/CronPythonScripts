@@ -221,7 +221,7 @@ def send_email(df):
     msg = email.message.Message()
     msg['From'] = FROM
     msg['To'] = "andreteles56@hotmail.com"
-    msg['Subject'] = f"Back Casa para o dia {datetime.date.today()}"
+    msg['Subject'] = f"Back BTTS para o dia {datetime.date.today()}"
     msg.add_header('Content-Type', 'text')
     msg.set_payload(extractEmailContent(df))
 
@@ -232,7 +232,7 @@ def send_email(df):
 
 
 def extractEmailContent(df):
-    text = "Os jogos que estão dentro do método Back Casa são:\n\n"
+    text = "Os jogos que estão dentro do método Back BTTS são:\n\n"
     for index, row in df.iterrows():
         text += f"- {row['ht']} vs {row['at']}\n"
     return text
